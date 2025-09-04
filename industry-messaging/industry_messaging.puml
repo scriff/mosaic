@@ -1,0 +1,35 @@
+@startuml
+actor "Client System" as Client
+actor "Downstream System" as Downstream
+participant "AI Requirements Engine" as AIReq
+participant "Human Reviewer" as Human
+participant "AI OpenAPI Generator" as AIOpenAPI
+participant "Code Generator" as CodeGen
+participant "Golang Transformation Tier" as TransformTier
+
+== Requirements Phase ==
+Client -> AIReq: Feed industry specs + sample messages
+AIReq -> AIReq: Parse specs (e.g., EDIFACT, PNRGOV)
+AIReq -> Human: Generate requirements
+Human -> Human: Review and validate requirements
+Human -> AIOpenAPI: Send validated requirements
+
+== OpenAPI Spec Generation ==
+AIOpenAPI -> AIOpenAPI: Generate OpenAPI specs
+AIOpenAPI -> Human: Send OpenAPI specs
+Human -> Human: Review and refine specs
+Human -> CodeGen: Send finalized OpenAPI specs
+
+== Code Generation ==
+CodeGen -> CodeGen: Generate transformation code
+CodeGen -> TransformTier: Deploy code to Golang tier
+
+== Message Transformation ==
+Client -> TransformTier: Send legacy message (e.g., EDIFACT)
+TransformTier -> TransformTier: Parse to OpenAPI model
+TransformTier -> Downstream: Output JSON/XML/etc.
+Downstream -> TransformTier: Send modern format (e.g., JSON)
+TransformTier -> TransformTier: Transform to legacy format
+TransformTier -> Client: Output legacy message
+
+@enduml

@@ -1,0 +1,107 @@
+```plantuml
+@startuml Task Queue Processing Flow
+
+actor "CloudWatch Events" as Trigger
+participant "AWS Lambda" as Lambda
+participant "ASP.NET Core API" as API
+participant "TaskQueueProcessor" as Processor
+participant "PostgreSQL" as DB
+participant "TaskLog" as TaskLog
+
+' Trigger Lambda every minute
+Trigger -> Lambda: Trigger (every minute)
+activate Lambda
+
+' Lambda calls API with preferred BatchId and WorkerId
+Lambda -> API: POST /api/task/process-task\n(BatchId: "A", WorkerId: UUID)
+activate API
+
+' API delegates to TaskQueueProcessor
+API -> Processor: ProcessQueueAsync(BatchId: "A", WorkerId)
+activate Processor
+
+' Attempt to acquire batch lock
+Processor -> DB: SELECT * FROM "BatchLocks"\nWHERE "BatchId" IN ('A', 'B', 'C')\nORDER BY CASE...\nFOR UPDATE SKIP LOCKED
+activate DB
+alt Batch available
+    DB --> Processor: BatchLock (e.g., BatchId: "A")
+    Processor -> DB: UPDATE "BatchLocks"\nSET LockedBy = WorkerId, LockedAt = NOW()
+    DB --> Processor: Success
+    deactivate DB
+
+    ' Process one task from acquired batch
+    Processor -> DB: SELECT * FROM "Tasks"\nWHERE BatchId = 'A'\nORDER BY "Id" ASC LIMIT 1\nFOR UPDATE SKIP LOCKED
+    activate DB
+    alt Task available
+        DB --> Processor: Task (Id: 1, BatchId: "A")
+        deactivate DB
+
+        ' Check idempotency
+        Processor -> DB: SELECT EXISTS\nFROM "TaskLog" WHERE TaskId = 1
+        activate DB
+        DB --> Processor: False (not processed)
+        deactivate DB
+
+        ' Simulate processing (1–2s)
+        Processor -> Processor: Process task (Task.Delay(1000))
+        note right: Simulate 1–2s processing
+
+        ' Log completion for idempotency
+        Processor -> DB: INSERT INTO "TaskLog"\n(TaskId: 1, CompletedAt: NOW())
+        activate DB
+        DB --> Processor: Success
+        deactivate DB
+
+        ' Delete task
+        Processor -> DB: DELETE FROM "Tasks"\nWHERE Id = 1
+        activate DB
+        DB --> Processor: Success
+        deactivate DB
+
+        ' Commit transaction
+        Processor -> DB: COMMIT
+        activate DB
+        DB --> Processor: Success
+        deactivate DB
+
+    else No tasks available
+        DB --> Processor: Null
+        deactivate DB
+        Processor -> Processor: Log "No tasks available in batch A"
+        Processor -> Processor: Exit task processing
+    end alt
+
+    ' Release batch lock
+    Processor -> DB: DELETE FROM "BatchLocks"\nWHERE BatchId = 'A' AND LockedBy = WorkerId
+    activate DB
+    DB --> Processor: Success
+    deactivate DB
+
+else No batch available
+    DB --> Processor: Null
+    deactivate DB
+    Processor -> Processor: Log "No available batch"
+    Processor -> Processor: Exit
+end alt
+
+' Return response to API
+Processor --> API: Success or Exception
+deactivate Processor
+
+' API responds to Lambda
+API --> Lambda: 200 OK or 500 Error
+deactivate API
+
+' Lambda logs result
+Lambda -> Lambda: Log "Task processed" or "Failed"
+deactivate Lambda
+
+' Handle errors with retries
+alt Transient error (e.g., DB timeout, API failure)
+    note right: Retry with exponential backoff\n(up to 5 for task, 3 for batch)
+    Processor -> Processor: Retry after delay (100ms * 2^retryCount)
+    Lambda -> Lambda: Retry API call after delay
+end alt
+
+@enduml
+```

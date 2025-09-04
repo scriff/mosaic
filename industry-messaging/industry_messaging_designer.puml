@@ -1,0 +1,50 @@
+@startuml
+actor "IATA Spec Provider" as IATA
+participant "Legacy SME (Person A)" as LegacySME
+participant "App SME (Person B)" as AppSME
+participant "Pre-Compiler Tool" as PreCompiler
+participant "Code Gen Tool" as CodeGen
+participant "Golang Transformation Tier" as TransformTier
+actor "Downstream System" as Downstream
+
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+== Design Phase: Define DSL Language (Infrastructure Dev) ==
+note over LegacySME, AppSME: Infrastructure: Define DSL syntax (e.g., YAML rules for segments, positions, map_to)
+
+IATA -> LegacySME: Provide industry specs (e.g., EDIFACT for PNR)
+LegacySME -> LegacySME: Understand legacy format, create DSL rules (e.g., LOC+2, chars 5-7 -> canonical.cityCodeOrigin)
+note right of LegacySME: Job: Create/Review EDIFACT DSL mappings
+
+IATA -> AppSME: Provide modern industry insights (e.g., JSON/XML standards)
+AppSME -> AppSME: Create canonical JSON Schema (e.g., cityCodeOrigin: string, minLength:3)
+note right of AppSME: Job: Define canonical model for internal systems
+
+== Validation Phase: Pre-Compiler (Infrastructure Dev) ==
+note over PreCompiler: Infrastructure: Develop pre-compiler to validate DSL against canonical schema
+
+LegacySME -> PreCompiler: Submit DSL rules
+AppSME -> PreCompiler: Submit canonical JSON Schema
+PreCompiler -> PreCompiler: Validate mappings (e.g., map_to fields exist, lengths compatible)
+PreCompiler -> LegacySME: Return validation report (e.g., errors or OK)
+PreCompiler -> AppSME: Return impact analysis (e.g., changes affect Carrier A)
+
+== Code Generation Phase: Auto-Generate Back-End (Infrastructure Dev) ==
+note over CodeGen: Infrastructure: Develop code gen tool for DSL & canonical to Golang code
+
+PreCompiler -> CodeGen: Validated DSL & Canonical Schema
+CodeGen -> CodeGen: Generate parsing code (EDIFACT to canonical via shogg/edifact)
+CodeGen -> CodeGen: Generate mapping code (canonical to internal modern format, e.g., JSON/XML)
+note right of CodeGen: Use DSL for bidirectional mappings (EDIFACT <-> canonical <-> modern)
+CodeGen -> TransformTier: Deploy generated Golang code
+
+== Runtime Phase: Message Flow ==
+actor "Client System" as Client
+Client -> TransformTier: Send message (e.g., EDIFACT from Carrier A)
+TransformTier -> TransformTier: Parse EDIFACT using generated code (DSL rules + shogg/edifact)
+TransformTier -> TransformTier: Map to canonical JSON Schema
+TransformTier -> TransformTier: Map canonical to modern format (e.g., JSON)
+TransformTier -> Downstream: Output modern format
+
+@enduml

@@ -1,0 +1,48 @@
+@startuml
+actor "Partner/Legacy SME (Person A)" as PartnerSME
+participant "App SME (Person B)" as AppSME
+participant "Infrastructure Dev (Person C)" as InfraDev
+participant "Pre-Compiler Tool" as PreCompiler
+participant "Code Gen Tool" as CodeGen
+participant "Golang Transformation Tier" as TransformTier
+actor "Downstream System" as Downstream
+
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+== Design Phase: Define DSL Language ==
+note over InfraDev: Job: Define DSL syntax (YAML for EDIFACT, canonical mappings)
+InfraDev -> InfraDev: Create DSL syntax (e.g., segment, position, map_to)
+
+== DSL Creation and Validation ==
+PartnerSME -> PartnerSME: Receive IATA specs (e.g., EDIFACT for PNR)
+PartnerSME -> PreCompiler: Submit DSL rules (e.g., LOC+2, chars 5-7 -> canonical.cityCodeOrigin)
+note right of PartnerSME: Job: Document carrier-specific EDIFACT in DSL via web UI
+AppSME -> AppSME: Define canonical JSON Schema (e.g., cityCodeOrigin: string)
+note right of AppSME: Job: Define canonical model for internal systems
+
+== Pre-Compiler Validation ==
+note over PreCompiler: Infrastructure: Develop pre-compiler to validate DSL vs. canonical
+PartnerSME -> PreCompiler: Upload sample messages (e.g., 100,000 PNRs)
+PreCompiler -> PreCompiler: Validate DSL mappings (field existence, length compatibility)
+PreCompiler -> PreCompiler: Validate sample messages against DSL
+PreCompiler -> PartnerSME: Return validation report (e.g., errors in cityCode length)
+PreCompiler -> AppSME: Return impact analysis for internal systems
+
+== Code Generation ==
+note over CodeGen: Infrastructure: Develop code gen tool for DSL & canonical
+PreCompiler -> CodeGen: Send validated DSL & canonical JSON Schema
+CodeGen -> CodeGen: Generate parsing code (EDIFACT to canonical via shogg/edifact)
+CodeGen -> CodeGen: Generate mapping code (canonical to JSON/XML)
+note right of CodeGen: Bidirectional mappings via DSL
+CodeGen -> TransformTier: Deploy Golang code
+
+== Runtime Message Flow ==
+actor "Client System" as Client
+Client -> TransformTier: Send message (e.g., EDIFACT from Partner)
+TransformTier -> TransformTier: Parse EDIFACT (DSL + shogg/edifact)
+TransformTier -> TransformTier: Map to canonical JSON Schema
+TransformTier -> TransformTier: Map to modern format (e.g., JSON)
+TransformTier -> Downstream: Output modern format
+
+@enduml

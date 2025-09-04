@@ -1,0 +1,49 @@
+@startuml
+actor "Client System" as Client
+actor "Downstream System" as Downstream
+participant "AI Requirements Engine" as AIReq
+participant "Legacy SME" as LegacySME
+participant "App SME" as AppSME
+participant "AI OpenAPI Generator" as AIOpenAPI
+participant "Code Generator" as CodeGen
+participant "Golang Transformation Tier" as TransformTier
+
+== Requirements Phase ==
+Client -> AIReq: Feed industry specs + sample messages (EDIFACT, JSON, XML)
+AIReq -> AIReq: Parse specs (e.g., EDIFACT, PNRGOV, JSON)
+AIReq -> LegacySME: Generate EDIFACT spec requirements (line-based, positional)
+note right: e.g., LOC+2, chars 5-7 for cityCode
+LegacySME -> LegacySME: Review positional rules (Carrier A, B, C variants)
+AIReq -> AppSME: Generate receiver spec requirements (JSON for internal systems)
+AppSME -> AppSME: Review modern format mappings (e.g., JSON { destination: JFK })
+AIReq -> AIOpenAPI: Generate canonical spec requirements
+note right: Canonical spec as universal model (e.g., PNR with cityCode)
+
+== OpenAPI Spec Generation ==
+AIOpenAPI -> AIOpenAPI: Generate EDIFACT, canonical, receiver specs
+AIOpenAPI -> LegacySME: Send EDIFACT spec (line-based models)
+LegacySME -> LegacySME: Validate (e.g., chars 5-7 = cityCode)
+AIOpenAPI -> AppSME: Send receiver spec
+AppSME -> AppSME: Validate (e.g., JSON { destination: JFK })
+AIOpenAPI -> AIOpenAPI: Finalize canonical spec
+AIOpenAPI -> CodeGen: Send EDIFACT, canonical, receiver specs
+
+== Code Generation ==
+CodeGen -> CodeGen: Generate server code for EDIFACT, JSON, XML
+note right: Server parses to canonical model
+CodeGen -> CodeGen: Generate client code for JSON, EDIFACT, XML
+note right: Client outputs from canonical model
+CodeGen -> TransformTier: Deploy code to Golang tier
+
+== Message Transformation ==
+Client -> TransformTier: Send message (EDIFACT from Carrier A)
+TransformTier -> TransformTier: Parse using EDIFACT spec (line-based)
+note right: e.g., LOC+2, chars 5-7 -> cityCode
+TransformTier -> TransformTier: Map to canonical spec
+TransformTier -> Downstream: Output JSON using receiver spec
+Downstream -> TransformTier: Send JSON (internal system)
+TransformTier -> TransformTier: Map to canonical spec
+TransformTier -> TransformTier: Map to EDIFACT spec
+TransformTier -> Client: Output EDIFACT (for Carrier B)
+
+@enduml
