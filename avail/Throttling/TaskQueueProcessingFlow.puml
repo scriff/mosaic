@@ -1,12 +1,11 @@
 ```plantuml
-@startuml Task Queue Processing Flow
+@startuml Task Queue Processing Flow (FIFO with Batches)
 
 actor "CloudWatch Events" as Trigger
 participant "AWS Lambda" as Lambda
 participant "ASP.NET Core API" as API
 participant "TaskQueueProcessor" as Processor
 participant "PostgreSQL" as DB
-participant "TaskLog" as TaskLog
 
 ' Trigger Lambda every minute
 Trigger -> Lambda: Trigger (every minute)
@@ -36,21 +35,12 @@ alt Batch available
         DB --> Processor: Task (Id: 1, BatchId: "A")
         deactivate DB
 
-        ' Check idempotency
-        Processor -> DB: SELECT EXISTS\nFROM "TaskLog" WHERE TaskId = 1
-        activate DB
-        DB --> Processor: False (not processed)
-        deactivate DB
-
         ' Simulate processing (1–2s)
         Processor -> Processor: Process task (Task.Delay(1000))
         note right: Simulate 1–2s processing
 
-        ' Log completion for idempotency
-        Processor -> DB: INSERT INTO "TaskLog"\n(TaskId: 1, CompletedAt: NOW())
-        activate DB
-        DB --> Processor: Success
-        deactivate DB
+        ' Log completion to CloudWatch
+        Processor -> Processor: Log "Completed task 1 in batch A"
 
         ' Delete task
         Processor -> DB: DELETE FROM "Tasks"\nWHERE Id = 1
