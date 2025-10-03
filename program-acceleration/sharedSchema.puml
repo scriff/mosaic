@@ -1,0 +1,32 @@
+@startuml
+!pragma layout tb  ' Set vertical top-to-bottom layout
+
+skinparam monochrome true
+skinparam shadowing false
+
+' Database as a central entity
+entity "Central Database\n(Postgres)" as DB {
+  + [Check-In Schema]
+  + [Reservations Schema]
+  + [Shared Views]
+}
+
+' Microservices
+entity "Check-In Service" as CheckIn
+entity "Reservations Service" as Reservations
+
+' Relationships
+CheckIn -down-> DB : Writes to [Check-In Schema]\nReads [Shared Views]
+Reservations -down-> DB : Writes to [Reservations Schema]\nReads [Shared Views]
+
+' Data Flow with Joins
+DB -[#blue]-> CheckIn : Join [Inventory Schema]\nfor Seat Availability
+DB -[#green]-> Reservations : Join [Check-In Schema]\nfor Passenger Status
+
+' Notes
+note right of DB
+  Logical separation via schemas.
+  Shared Views enable efficient joins.
+  Governance: Service owns its schema.
+end note
+@enduml

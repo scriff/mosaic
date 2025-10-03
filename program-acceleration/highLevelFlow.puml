@@ -1,0 +1,27 @@
+@startuml
+' Activity Diagram for Process Overview
+:start;
+:Create Business Docs;
+if (Gate 1: Business Sign-off) then (Solution)
+  :Define HLA Solution;
+else (DevOps)
+  :Define Infra Impacts;
+  -> [Arch Delivery];
+endif
+if (Gate 2: Delivery, Business & Consumer Sign-off) then (Dev)
+  :Detail Designs;
+else (QA)
+  :Define Test Plans;
+  -> [Tech Lead Delivery];
+endif
+if (Gate 3: Dev & Consumer Sign-off) then (Dev)
+  :Create Technical Stories;
+  :Generate Project via AI Prompt;
+  :Develop Logic;
+  :Deploy Service;
+else (QA)
+  :Develop Automation;
+  -> [Dev Delivery];
+endif
+:Ready For QA;
+@enduml

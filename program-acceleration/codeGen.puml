@@ -1,0 +1,44 @@
+@startuml
+!pragma layout tb  ' Set vertical top-to-bottom layout
+
+skinparam monochrome true
+skinparam shadowing false
+
+' Stages as entities
+entity "HLA Defining APIs" as HLA
+entity "Tech Design Defining\nSwagger/OpenAPI Spec" as TechDesign
+entity "Code Generation" as CodeGen
+
+' Components within Tech Design
+entity "Common Models" as CommonModels
+
+' Components within Code Generation
+entity "Developer Portal" as Portal
+entity "Kong Rules" as KongRules
+entity "Clients" as Clients
+entity "Server with Validation" as Server
+
+' Flow Relationships
+HLA -down-> TechDesign : Defines API Endpoints\nand Security Domains
+CommonModels -right-> TechDesign : Pulls in Shared Models\n(e.g., Passenger, Flight)
+TechDesign -down-> CodeGen : Generates Swagger/OpenAPI\nSpecs and Stubs
+CodeGen -down-> Portal : Publishes YAML\nand Examples
+CodeGen -down-> KongRules : Outputs Kong Config\nfrom Swagger
+CodeGen -down-> Clients : Generates Client Stubs\n(e.g., Postman, UI)
+CodeGen -down-> Server : Builds Server Code\nwith Validation Logic
+
+' Notes
+note right of HLA
+  High-Level Architecture sets
+  API structure (e.g., /internal/, /customer/).
+end note
+note right of TechDesign
+  Tech Design refines with
+  interaction diagrams, schemas,
+  and pulls Common Models.
+end note
+note right of CodeGen
+  AI-driven generation ensures
+  standards and automation.
+end note
+@enduml
