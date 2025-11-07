@@ -1,0 +1,91 @@
+@startuml pci_compliant_lambda_architecture
+' AWS Architecture Diagram: PCI‑Compliant Serverless Processing with Lambda and S3
+' Created: 2025-10-31
+' Author: Grok Architecture Team
+
+' ==== v20.0 includes – ONLY files that exist in the tag ====
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/Compute/Lambda.puml
+!include AWSPuml/Storage/SimpleStorageService.puml
+!include AWSPuml/Groups/VPC.puml
+!include AWSPuml/SecurityIdentityCompliance/IdentityandAccessManagement.puml
+!include AWSPuml/SecurityIdentityCompliance/CloudHSM.puml
+!include AWSPuml/General/InternetAlt1.puml
+
+' ==== Skin parameters (best‑practice) ====
+scale 1
+skinparam linetype ortho
+skinparam monochrome true
+skinparam ranksep 20
+skinparam dpi 150
+left to right direction
+
+' ==== VPC (PCI‑scoped) ====
+VPC(vpc, "PCI‑DSS Scoped VPC") {
+    rectangle "Private Subnet A" as priv_a
+    rectangle "Private Subnet B" as priv_b
+
+    Lambda(lambda_proc, "Payment Processor\nLambda", "C# .NET 8")
+    rectangle "ENI" as eni
+
+    ' CloudHSM v2 – native icon in v20.0
+    CloudHSMv2(hsm, "CloudHSM v2 Cluster")
+}
+
+note right of lambda_proc : CPU‑intensive, multithreaded\n1‑2 min duration\nProcesses tokenized PAN\nPCI DSS 3.2.1
+
+' ==== S3 bucket ====
+SimpleStorageService(s3_pci, "Cardholder Data Store\n(S3 Bucket)", "pci‑data‑bucket")
+
+note bottom of s3_pci
+    • SSE‑KMS with HSM‑backed CMK
+    • Bucket policy: TLS only
+    • Versioning + MFA Delete
+    • Object Lock (WORM)
+    • Access logging → separate account
+end note
+
+' ==== Supporting services ====
+rectangle "API Gateway\n(HTTPS)" as apigw
+rectangle "AWS WAF" as waf
+
+' IAM – correct macro name in v20.0
+IAM(iam_role, "Lambda Execution Role")
+
+rectangle "CloudWatch Logs\n(Encrypted)" as cw_logs
+rectangle "S3 Access Logs\n(Separate Account)" as s3_logs
+
+' ==== Relationships ====
+apigw --> waf : Filter SQLi / XSS
+waf --> lambda_proc : Secure invoke
+lambda_proc --> hsm : Fetch encryption key\n(PCI Req 3.5)
+lambda_proc --> s3_pci : Write encrypted CHD\n(SSE‑KMS + HSM)
+lambda_proc --> cw_logs : Encrypted logs\n(KMS + HSM CMK)
+s3_pci --> s3_logs : Access logging
+lambda_proc --> eni : VPC egress
+eni --> InternetAlt1() : NAT Gateway\n(controlled outbound)
+
+' ==== Security boundaries ====
+package "PCI In‑Scope" #LightYellow {
+    vpc
+    s3_pci
+    hsm
+}
+package "Management Plane" #LightGreen {
+    iam_role
+    cw_logs
+}
+
+note bottom of vpc
+    **PCI DSS Controls Applied**
+    • Req 1 – VPC isolation, NACLs, SGs
+    • Req 2 – Hardened Lambda runtime
+    • Req 3 – Encryption at rest (KMS+HSM)
+    • Req 4 – TLS 1.2+ everywhere
+    • Req 7/8 – Least‑privilege IAM + MFA
+    • Req 10 – CloudWatch + CloudTrail
+    • Req 12 – WAF, HSM key mgmt
+end note
+
+@enduml
