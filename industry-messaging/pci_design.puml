@@ -1,7 +1,7 @@
 @startuml pci_compliant_lambda_architecture
 ' AWS Architecture Diagram: PCI‑Compliant Serverless Processing with Lambda and S3
 ' Created: 2025-10-31
-' Author: Grok Architecture Team
+' Author: TBD
 
 ' ==== v20.0 includes – ONLY files that exist in the tag ====
 !define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
