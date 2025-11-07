@@ -1,5 +1,6 @@
 ```plantuml
 @startuml Task Queue Processing Flow (FIFO with Batches)
+  
 
 actor "CloudWatch Events" as Trigger
 participant "AWS Lambda" as Lambda
